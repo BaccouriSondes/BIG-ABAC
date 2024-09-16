@@ -1,0 +1,78 @@
+services:
+  zookeeper:
+    image: apache/ranger-zk:2.4.0
+    hostname: ranger-zk.example.com
+    networks:
+      - rangernw
+    ports:
+      - "2181:2181"
+
+  ranger-solr:
+    image: apache/ranger-solr:2.4.0
+    hostname: ranger-solr.example.com
+    networks:
+      - rangernw
+    ports:
+      - "8983:8983"
+    command: solr-precreate ranger_audits /opt/solr/server/solr/configsets/ranger_audits/
+
+  ranger-db:
+    image: apache/ranger-db:2.4.0
+    hostname: ranger-db.example.com
+    networks:
+      - rangernw
+    healthcheck:
+      test: ["CMD", "su", "-c", "pg_isready -q", "postgres"]
+      interval: 10s
+      timeout: 2s
+      retries: 30
+
+  ranger-admin:
+    image: apache/ranger:2.4.0
+    hostname: ranger.example.com
+    networks:
+      - rangernw
+    ports:
+      - "6080:6080"
+    environment:
+      RANGER_ADMIN_PASSWORD: "rangeradmin"
+      RANGER_VERSION: "2.4.0"
+      RANGER_DB_TYPE: "postgres"
+    depends_on:
+      - ranger-db
+      - ranger-solr
+      - zookeeper
+
+  kafka:
+    image: bitnami/kafka:latest
+    hostname: kafka.example.com
+    networks:
+      - rangernw
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: ranger-zk.example.com:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+    depends_on:
+      - zookeeper
+
+  mongodb:
+    image: mongo:latest
+    hostname: mongo.example.com
+    networks:
+      - rangernw
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: "root"
+      MONGO_INITDB_ROOT_PASSWORD: "examplepassword"
+    volumes:
+      - mongo-data:/data/db
+
+networks:
+  rangernw:
+    driver: bridge
+
+volumes:
+  mongo-data:
